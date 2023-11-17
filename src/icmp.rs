@@ -2,7 +2,7 @@
 pub const IPV4_HEADER_SIZE: usize = 20;
 
 /// The size, in bytes, of our custom ICMP packet.
-pub const ICMP_PACKET_SIZE: usize = 12;
+pub const ICMP_PACKET_SIZE: usize = 14;
 
 /// The total size, in bytes, of `worldping`'s echo requests and responses.
 /// 
@@ -15,9 +15,9 @@ pub const FULL_PACKET_SIZE: usize = IPV4_HEADER_SIZE + ICMP_PACKET_SIZE;
 /// - 1 byte for type (constant `8`)
 /// - 1 byte for code (constant `0`)
 /// - 2 bytes for checksum ([`icmp_checksum`])
+/// - 2 bytes for identifier (constant `"WP"`)
 /// - 8 bytes for payload (Unix time of dispatch, in milliseconds)
-///   - Note that the first four bytes of payload are "packed" into the unneeded 2-byte "identifier" and
-///     "sequence number" fields.
+///   - Note that the first two bytes of payload are "packed" into the unneeded sequence number field.
 pub fn write_packet(buffer: &mut [u8; ICMP_PACKET_SIZE]) {
     use std::time::Duration;
     use std::time::SystemTime;
@@ -25,6 +25,7 @@ pub fn write_packet(buffer: &mut [u8; ICMP_PACKET_SIZE]) {
 
     const ICMP_TYPE_ECHO_REQ: u8 = 8;
     const ICMP_CODE_ECHO_REQ: u8 = 0;
+    const ICMP_ID: [u8; 2] = [b'W', b'P'];
 
     buffer[0] = ICMP_TYPE_ECHO_REQ;
     buffer[1] = ICMP_CODE_ECHO_REQ;
@@ -33,15 +34,17 @@ pub fn write_packet(buffer: &mut [u8; ICMP_PACKET_SIZE]) {
     buffer[2] = 0;
     buffer[3] = 0;
 
+    buffer[4..6].copy_from_slice(&ICMP_ID);
+
     let now = SystemTime::now()
         .duration_since(UNIX_EPOCH)
         .as_ref()
         .map(Duration::as_millis)
         .map(|x| x as u64)
         .map(u64::to_be_bytes)
-        .expect("Failed to compute UNIX time");
+        .unwrap();
 
-    buffer[4..ICMP_PACKET_SIZE].copy_from_slice(&now);
+    buffer[6..ICMP_PACKET_SIZE].copy_from_slice(&now);
 
     icmp_checksum(buffer);
 }
