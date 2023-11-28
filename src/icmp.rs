@@ -1,3 +1,5 @@
+#![allow(dead_code)]
+
 use std::ops::Range;
 use std::net::Ipv4Addr;
 use std::time::{Duration, UNIX_EPOCH};
@@ -16,6 +18,9 @@ pub const FULL_PACKET_SIZE: usize = IPV4_HEADER_SIZE + ICMP_PACKET_SIZE;
 /// The byte index (in a received packet, with IPV4 header) of the ICMP message type byte.
 pub const ICMP_TYPE_INDEX: usize = 20;
 
+/// The byte index (in a received packet, with IPV4 header) of the IPv4 TTL field.
+pub const IPV4_TTL_RANGE: usize = 8;
+
 /// The byte range (in a received packet, with IPV4 header) of the ICMP payload.
 pub const ICMP_DATA_RANGE: Range<usize> = 26..FULL_PACKET_SIZE;
 
@@ -28,27 +33,23 @@ pub const ICMP_ID_RANGE: Range<usize> = 24..26;
 #[derive(Debug)]
 pub struct Reply {
     pub from: Ipv4Addr,
-    pub sent: u64
+    pub sent: u64,
+    pub ttl: u8,
 }
 
 impl Reply {
-    pub fn is_valid(buf: &[u8; FULL_PACKET_SIZE]) -> bool {
-        if buf[ICMP_TYPE_INDEX] != 0 { return false; }
-        if buf[ICMP_ID_RANGE] != [b'W', b'P'] { return false; }
-
-        true
-    }
-
     pub fn from_bytes(buf: &[u8; FULL_PACKET_SIZE]) -> Self {
         let from = Ipv4Addr::from(
             slice_array::<4>(&buf[IPV4_IP_RANGE])
         );
 
-        let data = u64::from_be_bytes(
+        let sent = u64::from_be_bytes(
             slice_array::<8>(&buf[ICMP_DATA_RANGE])
         );
 
-        Self { from, sent: data }
+        let ttl = buf[IPV4_TTL_RANGE];
+
+        Self { from, sent, ttl }
     }
 
     pub fn roundtrip_time(&self) -> Duration {
