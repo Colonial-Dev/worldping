@@ -8,5 +8,6 @@ edition = "2021"
 [dependencies]
 anyhow = "1.0.75"
 exemplar = "0.9.0"
+libc = "0.2.150"
 rusqlite = "0.30.0"
 socket2 = { version = "0.5.5", features = ["all"] }

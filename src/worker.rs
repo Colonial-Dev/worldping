@@ -39,27 +39,42 @@ pub fn send_worker(addrs: Receiver<SockAddr>) -> Result<()> {
 }
 
 pub fn recv_worker() -> Result<()> {
+    use libc::sock_filter as Op;
+
+    // ldh [20]
+    // jne #0x0, drop
+    // ret #-1
+    // drop: ret #0
+    static BPF: &[Op] = &[
+        Op { code: 0x28,  jt: 0,  jf: 0, k: 0x00000014 },
+        Op { code: 0x15,  jt: 0,  jf: 1, k: 0000000000 },
+        Op { code: 0x06,  jt: 0,  jf: 0, k: 0xffffffff },
+        Op { code: 0x06,  jt: 0,  jf: 0, k: 0000000000 },
+    ];
+
     let sock = Socket::new(
         Domain::IPV4,
         Type::RAW,
         Some(Protocol::ICMPV4)
     )?;
 
+    sock.attach_filter(BPF)?;
+
     let mut buf = [0_u8; FULL_PACKET_SIZE];
+
+    use std::io::Write;
+    let mut stdout = std::io::stdout().lock();
 
     loop {
         (&sock).read_exact(&mut buf)?;
 
-        if !Reply::is_valid(&buf) {
-            continue; 
-        }
-
         let reply = Reply::from_bytes(&buf);
 
-        println!(
+        writeln!(
+            stdout,
             "{reply:?} (RTT: {:?})", 
             reply.roundtrip_time()
-        );
+        )?;
     }
 
     #[allow(unreachable_code)]
