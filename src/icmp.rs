@@ -1,3 +1,7 @@
+use std::ops::Range;
+use std::net::Ipv4Addr;
+use std::time::{Duration, UNIX_EPOCH};
+
 /// The size, in bytes, of an IPv4 header.
 pub const IPV4_HEADER_SIZE: usize = 20;
 
@@ -9,6 +13,68 @@ pub const ICMP_PACKET_SIZE: usize = 14;
 /// Equivalent to [`IPV4_HEADER_SIZE`] + [`ICMP_PACKET_SIZE`].
 pub const FULL_PACKET_SIZE: usize = IPV4_HEADER_SIZE + ICMP_PACKET_SIZE;
 
+/// The byte index (in a received packet, with IPV4 header) of the ICMP message type byte.
+pub const ICMP_TYPE_INDEX: usize = 20;
+
+/// The byte range (in a received packet, with IPV4 header) of the ICMP payload.
+pub const ICMP_DATA_RANGE: Range<usize> = 26..FULL_PACKET_SIZE;
+
+/// The byte range (in a received packet, with IPV4 header) of the sender's IP address.
+pub const IPV4_IP_RANGE: Range<usize> = 12..16;
+
+/// The byte range (in a received packet, with IPV4 header) of the echo "identifier" field.
+pub const ICMP_ID_RANGE: Range<usize> = 24..26;
+
+#[derive(Debug)]
+pub struct Reply {
+    pub from: Ipv4Addr,
+    pub sent: u64
+}
+
+impl Reply {
+    pub fn is_valid(buf: &[u8; FULL_PACKET_SIZE]) -> bool {
+        if buf[ICMP_TYPE_INDEX] != 0 { return false; }
+        if buf[ICMP_ID_RANGE] != [b'W', b'P'] { return false; }
+
+        true
+    }
+
+    pub fn from_bytes(buf: &[u8; FULL_PACKET_SIZE]) -> Self {
+        let from = Ipv4Addr::from(
+            slice_array::<4>(&buf[IPV4_IP_RANGE])
+        );
+
+        let data = u64::from_be_bytes(
+            slice_array::<8>(&buf[ICMP_DATA_RANGE])
+        );
+
+        Self { from, sent: data }
+    }
+
+    pub fn roundtrip_time(&self) -> Duration {
+        use std::time::SystemTime;
+
+        SystemTime::now()
+            .duration_since(UNIX_EPOCH)
+            .as_ref()
+            .map(Duration::as_millis)
+            .map(|x| {
+                (x as u64).saturating_sub(self.sent)
+            })
+            .map(Duration::from_millis)
+            .unwrap()
+    }
+}
+
+fn slice_array<const N: usize>(slice: &[u8]) -> [u8; N] {
+    assert!(
+        slice.len() == N,
+        "Tried to convert an incorrectly-sized slice to an array!"
+    );
+
+    slice.try_into().unwrap()
+}
+
 /// Write a new ICMP echo request packet into the provided buffer.
 ///
 /// ICMP packet layout:
@@ -19,9 +85,7 @@ pub const FULL_PACKET_SIZE: usize = IPV4_HEADER_SIZE + ICMP_PACKET_SIZE;
 /// - 8 bytes for payload (Unix time of dispatch, in milliseconds)
 ///   - Note that the first two bytes of payload are "packed" into the unneeded sequence number field.
 pub fn write_packet(buffer: &mut [u8; ICMP_PACKET_SIZE]) {
-    use std::time::Duration;
     use std::time::SystemTime;
-    use std::time::UNIX_EPOCH;
 
     const ICMP_TYPE_ECHO_REQ: u8 = 8;
     const ICMP_CODE_ECHO_REQ: u8 = 0;

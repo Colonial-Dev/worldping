@@ -1,27 +1,12 @@
 mod icmp;
+mod worker;
 
-use std::io::Read;
-use std::sync::mpsc::*;
-use std::thread::JoinHandle;
+use std::net::Ipv4Addr;
 
 use anyhow::Result;
 use socket2::*;
 
 use crate::icmp::*;
-
-struct Reply<'a> {
-    pub from: &'a [u8],
-    pub data: &'a [u8]
-}
-
-impl<'a> Reply<'a> {
-    pub fn from_bytes(buf: &'a [u8; FULL_PACKET_SIZE]) -> Self {
-        Reply {
-            from: &buf[12..16],
-            data: &buf[IPV4_HEADER_SIZE..FULL_PACKET_SIZE]
-        }
-    }
-}
 
 fn main() -> Result<()> {
     let sock = Socket::new(
@@ -30,23 +15,47 @@ fn main() -> Result<()> {
         Some(Protocol::ICMPV4)
     )?;
 
-    let localhost: std::net::SocketAddr = "127.0.0.1:65535".parse().unwrap();
-    let localhost = SockAddr::from(localhost);
+    let start: Ipv4Addr = "8.8.8.8".parse().unwrap();
+    let end: Ipv4Addr = "8.8.255.255".parse().unwrap();
 
-    let mut req = [0u8; ICMP_PACKET_SIZE];
-    let mut buf = [0u8; FULL_PACKET_SIZE];
+    let jh = std::thread::spawn(|| {
+        worker::recv_worker().unwrap();
+    });
 
-    loop {
-        write_packet(&mut req);
-        
-        sock.send_to(&req, &localhost)?;
+    let rxs: Vec<_> = (0..4)
+        .map(|_| {
+            use std::sync::mpsc::*;
 
-        std::thread::sleep(std::time::Duration::from_millis(100));
+            let (tx, rx) = sync_channel(64);
 
-        (&sock).read_exact(&mut buf)?;
+            std::thread::spawn(move || {
+                worker::send_worker(rx)
+            });
 
-        println!("{buf:?}");
-    }
+            tx
+        })
+        .collect();
+
+    worker::dispatch(
+        &rxs, 
+        addr_iter(start, end)
+    )?;
+
+    println!("done");
+
+    std::thread::sleep(std::time::Duration::from_secs(5));
 
     Ok(())
+}
+
+fn addr_iter(start: Ipv4Addr, end: Ipv4Addr) -> impl Iterator<Item = SockAddr> {
+    use std::net::SocketAddrV4;
+
+    let s = u32::from(start);
+    let f = u32::from(end);
+
+    (s..=f)
+        .map(Ipv4Addr::from)
+        .map(|ip| SocketAddrV4::new(ip, 0) )
+        .map(SockAddr::from)
 }
