@@ -69,7 +69,7 @@ impl Reply {
 #[table("replies")]
 pub struct Record {
     pub address: String,
-    pub time: Option<f64>,
+    pub time: Option<i64>,
     pub seen: bool,
 }
 
@@ -83,7 +83,7 @@ impl Record {
             source.from
         );
 
-        self.time = Some( source.roundtrip_time().as_micros() as f64 / 1000.0 );
+        self.time = Some( source.roundtrip_time().as_millis() as i64 );
         self.seen = true;
     }
 }

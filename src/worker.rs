@@ -123,7 +123,7 @@ pub fn recv_worker(token: Arc<AtomicBool>, mut conn: Connection) -> Result<()> {
 
     let mut record = Record {
         address: String::with_capacity(16),
-        time: Some(0.0),
+        time: Some(0),
         seen: true,
     };
 

@@ -2,6 +2,7 @@ mod args;
 mod icmp;
 mod worker;
 
+use std::io::Write;
 use std::net::Ipv4Addr;
 use std::path::PathBuf;
 use std::thread;
@@ -48,7 +49,11 @@ fn main() -> Result<()> {
     let mut conn = open_db(args.output)?;
 
     if args.prefill {
+        use std::io::stdout;
+
         print!("Prefilling database... ");
+
+        stdout().flush()?;
 
         let txn = conn.transaction()?;
 
@@ -197,7 +202,7 @@ fn open_db(path: Option<PathBuf>,) -> Result<Connection> {
 
         CREATE TABLE replies (
             address  TEXT, 
-            time     REAL,
+            time     INTEGER,
             seen     BOOLEAN
         );
     ")?;

@@ -12,10 +12,10 @@ pub struct Arguments {
     /// The end of the IPv4 address range to ping
     #[arg(long, value_parser = clap::value_parser!(Ipv4Addr), default_value = "255.255.255.255", )]
     pub end_addr: Ipv4Addr,
-    /// The number of worker threads to use for dispatch. Defaults to `system threads / 3`
+    /// The number of worker threads to use for dispatch
     #[arg(short, long)]
     pub workers: Option<usize>,
-    /// The path of the output database. Defaults to `output-YYYY-MM-DD-HH-MM.db`
+    /// The path of the output database
     #[arg(short, long)]
     pub output: Option<PathBuf>,
     /// Whether or not to "prefill" the output database
