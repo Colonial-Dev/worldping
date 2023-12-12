@@ -1,8 +1,11 @@
 #![allow(dead_code)]
 
+use std::fmt::Write;
 use std::ops::Range;
 use std::net::Ipv4Addr;
 use std::time::{Duration, UNIX_EPOCH};
+
+use exemplar::*;
 
 /// The size, in bytes, of an IPv4 header.
 pub const IPV4_HEADER_SIZE: usize = 20;
@@ -18,9 +21,6 @@ pub const FULL_PACKET_SIZE: usize = IPV4_HEADER_SIZE + ICMP_PACKET_SIZE;
 /// The byte index (in a received packet, with IPV4 header) of the ICMP message type byte.
 pub const ICMP_TYPE_INDEX: usize = 20;
 
-/// The byte index (in a received packet, with IPV4 header) of the IPv4 TTL field.
-pub const IPV4_TTL_RANGE: usize = 8;
-
 /// The byte range (in a received packet, with IPV4 header) of the ICMP payload.
 pub const ICMP_DATA_RANGE: Range<usize> = 26..FULL_PACKET_SIZE;
 
@@ -34,7 +34,6 @@ pub const ICMP_ID_RANGE: Range<usize> = 24..26;
 pub struct Reply {
     pub from: Ipv4Addr,
     pub sent: u64,
-    pub ttl: u8,
 }
 
 impl Reply {
@@ -47,9 +46,8 @@ impl Reply {
             slice_array::<8>(&buf[ICMP_DATA_RANGE])
         );
 
-        let ttl = buf[IPV4_TTL_RANGE];
 
-        Self { from, sent, ttl }
+        Self { from, sent }
     }
 
     pub fn roundtrip_time(&self) -> Duration {
@@ -64,6 +62,29 @@ impl Reply {
             })
             .map(Duration::from_millis)
             .unwrap()
+    }
+}
+
+#[derive(Debug, Model)]
+#[table("replies")]
+pub struct Record {
+    pub address: String,
+    pub time: Option<f64>,
+    pub seen: bool,
+}
+
+impl Record {
+    pub fn overwrite(&mut self, source: &Reply) {
+        self.address.clear();
+
+        let _ = write!(
+            self.address,
+            "{}",
+            source.from
+        );
+
+        self.time = Some( source.roundtrip_time().as_micros() as f64 / 1000.0 );
+        self.seen = true;
     }
 }
 
