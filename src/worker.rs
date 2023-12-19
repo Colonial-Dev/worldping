@@ -82,9 +82,9 @@ pub fn send_worker(rx: Receiver<SockAddr>) -> Result<()> {
                 }
                 // Some addresses can't be sent to and throw EPERM.
                 // In this case, skip.
-                Err(libc::EPERM) => break,
+                Err(libc::EPERM) | Err(libc::EACCES) => break,
                 // Something else has gone wrong. Bail.
-                Err(_) => anyhow::bail!(
+                Err(_) => panic!(
                     "Send error in worker thread: {}",
                     Error::last_os_error()
                 )
@@ -165,7 +165,7 @@ pub fn recv_worker(token: Arc<AtomicBool>, mut conn: Connection) -> Result<()> {
                 break;
             },
             // Something else has gone wrong. Bail.
-            Err(_) => anyhow::bail!(
+            Err(_) => panic!(
                 "Receive error in worker thread: {}",
                 Error::last_os_error()
             )
