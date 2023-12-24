@@ -6,10 +6,6 @@
 <img src="https://img.shields.io/github/stars/Colonial-Dev/worldping">
 </p>
 
-<p align="center">
-<a href="https://asciinema.org/a/JE95PthxIxHIVHPnca2LJ964Y" target="_blank"><img src="https://asciinema.org/a/JE95PthxIxHIVHPnca2LJ964Y.svg" height = "300"/></a>
-</p>
-
 ## Features
 - Ping the entire version 4 address space, or just a subset of it.
 - Response data (address and approximate round-trip time) is written to a SQLite database for ease of analysis.
